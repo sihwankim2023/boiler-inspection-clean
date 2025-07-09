@@ -1,47 +1,91 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { useInspections } from '../hooks/useInspections'
-import { generateInspectionPDF, downloadPDF } from '../lib/pdfGenerator'
 
 interface InspectionForm {
   inspectionDate: string
   inspector: string
   siteName: string
-  address: string
+  city: string
+  district: string
   result: string
   summary: string
 }
 
+// 시/구 데이터
+const cityData = {
+  '서울특별시': ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구'],
+  '경기도': ['수원시', '성남시', '안양시', '안산시', '용인시', '광명시', '평택시', '과천시', '오산시', '시흥시', '군포시', '의왕시', '하남시', '이천시', '안성시', '김포시', '화성시', '광주시', '양주시', '포천시', '여주시', '연천군', '가평군', '양평군'],
+  '인천광역시': ['중구', '동구', '미추홀구', '연수구', '남동구', '부평구', '계양구', '서구', '강화군', '옹진군'],
+  '부산광역시': ['중구', '서구', '동구', '영도구', '부산진구', '동래구', '남구', '북구', '해운대구', '사하구', '금정구', '강서구', '연제구', '수영구', '사상구', '기장군'],
+  '대구광역시': ['중구', '동구', '서구', '남구', '북구', '수성구', '달서구', '달성군']
+}
+
 export default function InspectionPage() {
   const navigate = useNavigate()
-  const { register, handleSubmit, formState: { errors } } = useForm<InspectionForm>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<InspectionForm>({
     defaultValues: {
-      inspectionDate: new Date().toISOString().split('T')[0]
+      inspectionDate: new Date().toISOString().split('T')[0],
+      city: '',
+      district: ''
     }
   })
-  const { addInspection } = useInspections()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inspections, setInspections] = useState<any[]>([])
+  
+  const selectedCity = watch('city')
+  const availableDistricts = cityData[selectedCity as keyof typeof cityData] || []
 
   const onSubmit = async (data: InspectionForm) => {
     setIsSubmitting(true)
     
     try {
-      // Supabase에 데이터 저장
-      const savedInspection = await addInspection({
+      // 로컬 스토리지에 저장 (Supabase 대신)
+      const newInspection = {
+        id: Date.now().toString(),
         inspection_date: data.inspectionDate,
         inspector: data.inspector,
         site_name: data.siteName,
-        address: data.address,
+        address: `${data.city} ${data.district}`,
         result: data.result,
-        summary: data.summary
-      })
+        summary: data.summary,
+        created_at: new Date().toISOString()
+      }
       
-      // PDF 생성
-      const pdfBlob = await generateInspectionPDF(data)
-      downloadPDF(pdfBlob, `점검보고서_${data.siteName}_${data.inspectionDate}.pdf`)
+      // 기존 데이터 가져오기
+      const existingData = localStorage.getItem('inspections')
+      const inspections = existingData ? JSON.parse(existingData) : []
       
-      alert('점검이 완료되고 PDF가 생성되었습니다!')
+      // 새 데이터 추가
+      inspections.unshift(newInspection)
+      localStorage.setItem('inspections', JSON.stringify(inspections))
+      
+      // PDF 생성 시뮬레이션
+      const pdfContent = `
+보일러 점검 보고서
+
+점검일: ${data.inspectionDate}
+점검자: ${data.inspector}
+현장명: ${data.siteName}
+주소: ${data.city} ${data.district}
+점검 결과: ${data.result}
+점검 요약: ${data.summary || '없음'}
+
+생성 시간: ${new Date().toLocaleString('ko-KR')}
+      `
+      
+      // 텍스트 파일로 다운로드
+      const blob = new Blob([pdfContent], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `점검보고서_${data.siteName}_${data.inspectionDate}.txt`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      alert('점검이 완료되고 보고서가 다운로드되었습니다!')
       navigate('/')
       
     } catch (error) {
@@ -112,19 +156,43 @@ export default function InspectionPage() {
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              주소 *
-            </label>
-            <input
-              type="text"
-              {...register('address', { required: '주소를 입력하세요' })}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="설치 주소"
-            />
-            {errors.address && (
-              <p className="mt-1 text-sm text-red-600">{errors.address.message}</p>
-            )}
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                시/도 *
+              </label>
+              <select
+                {...register('city', { required: '시/도를 선택하세요' })}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">시/도 선택</option>
+                {Object.keys(cityData).map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+              {errors.city && (
+                <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                구/군 *
+              </label>
+              <select
+                {...register('district', { required: '구/군을 선택하세요' })}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={!selectedCity}
+              >
+                <option value="">구/군 선택</option>
+                {availableDistricts.map(district => (
+                  <option key={district} value={district}>{district}</option>
+                ))}
+              </select>
+              {errors.district && (
+                <p className="mt-1 text-sm text-red-600">{errors.district.message}</p>
+              )}
+            </div>
           </div>
 
           <div>
@@ -160,8 +228,8 @@ export default function InspectionPage() {
           <div className="bg-blue-50 p-4 rounded-lg">
             <h3 className="font-semibold text-blue-800 mb-2">점검 완료 시</h3>
             <ul className="text-sm text-blue-700 space-y-1">
-              <li>• 점검 데이터가 Supabase에 저장됩니다</li>
-              <li>• PDF 보고서가 자동으로 생성됩니다</li>
+              <li>• 점검 데이터가 로컬에 저장됩니다</li>
+              <li>• 텍스트 보고서가 자동으로 다운로드됩니다</li>
               <li>• 홈 화면에서 점검 기록을 확인할 수 있습니다</li>
             </ul>
           </div>
