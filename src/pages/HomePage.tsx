@@ -1,9 +1,28 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useInspections } from '../hooks/useInspections'
 
 export default function HomePage() {
-  const { inspections, loading } = useInspections()
+  const [inspections, setInspections] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // 로컬 스토리지에서 점검 데이터 로드
+    const loadInspections = () => {
+      try {
+        const data = localStorage.getItem('inspections')
+        const parsedData = data ? JSON.parse(data) : []
+        setInspections(parsedData)
+      } catch (error) {
+        console.error('데이터 로드 실패:', error)
+        setInspections([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadInspections()
+  }, [])
+
   const recentInspections = inspections.slice(0, 5)
 
   return (
@@ -33,9 +52,12 @@ export default function HomePage() {
               총 점검 수: {inspections.length}개
             </p>
             <p className="mb-4 opacity-90">
-              이번 달 점검: {inspections.filter(i => 
-                new Date(i.inspection_date).getMonth() === new Date().getMonth()
-              ).length}개
+              이번 달 점검: {inspections.filter(i => {
+                const inspectionDate = new Date(i.inspection_date)
+                const now = new Date()
+                return inspectionDate.getMonth() === now.getMonth() && 
+                       inspectionDate.getFullYear() === now.getFullYear()
+              }).length}개
             </p>
             <div className="bg-white text-green-600 px-6 py-3 rounded-lg font-semibold">
               활성 상태 ✅
@@ -107,8 +129,8 @@ export default function HomePage() {
             <span className="ml-2 text-green-600 font-medium">✅ 성공</span>
           </div>
           <div>
-            <span className="text-gray-600">데이터베이스:</span>
-            <span className="ml-2 text-green-600 font-medium">✅ 연결됨</span>
+            <span className="text-gray-600">데이터 저장:</span>
+            <span className="ml-2 text-green-600 font-medium">✅ 로컬 저장</span>
           </div>
           <div>
             <span className="text-gray-600">마지막 업데이트:</span>
