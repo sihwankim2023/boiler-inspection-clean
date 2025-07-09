@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getInspections, saveInspection, type Inspection } from '../lib/supabase'
 
 export function useInspections() {
-  const [inspections, setInspections] = useState<Inspection[]>([])
+  const [inspections, setInspections] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -10,25 +9,36 @@ export function useInspections() {
     loadInspections()
   }, [])
 
-  const loadInspections = async () => {
+  const loadInspections = () => {
     try {
       setLoading(true)
-      const data = await getInspections()
-      setInspections(data)
+      const data = localStorage.getItem('inspections')
+      const parsedData = data ? JSON.parse(data) : []
+      setInspections(parsedData)
+      setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load inspections')
+      setError('데이터 로드 실패')
+      setInspections([])
     } finally {
       setLoading(false)
     }
   }
 
-  const addInspection = async (data: Omit<Inspection, 'id' | 'created_at'>) => {
+  const addInspection = (data: any) => {
     try {
-      const newInspection = await saveInspection(data)
-      setInspections(prev => [newInspection, ...prev])
+      const newInspection = {
+        id: Date.now().toString(),
+        ...data,
+        created_at: new Date().toISOString()
+      }
+      
+      const updated = [newInspection, ...inspections]
+      setInspections(updated)
+      localStorage.setItem('inspections', JSON.stringify(updated))
+      
       return newInspection
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save inspection')
+      setError('데이터 저장 실패')
       throw err
     }
   }
