@@ -1,2 +1,11 @@
-# boiler-inspection-clean
-Clean boiler inspection app for Vercel deployment
+# 보일러 점검 앱
+
+완전한 모바일 점검 관리 시스템
+
+## 기능
+- 점검 데이터 입력
+- PDF 자동 생성
+- 점검 기록 관리
+- 반응형 모바일 디자인
+
+배포 시간: 2025. 7. 9. 오전 11:01:20
