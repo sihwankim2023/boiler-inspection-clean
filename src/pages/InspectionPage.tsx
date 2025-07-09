@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { useInspections } from '../hooks/useInspections'
+import { generateInspectionPDF, downloadPDF } from '../lib/pdfGenerator'
 
 interface InspectionForm {
   inspectionDate: string
@@ -13,25 +15,38 @@ interface InspectionForm {
 
 export default function InspectionPage() {
   const navigate = useNavigate()
-  const { register, handleSubmit, formState: { errors } } = useForm<InspectionForm>()
+  const { register, handleSubmit, formState: { errors } } = useForm<InspectionForm>({
+    defaultValues: {
+      inspectionDate: new Date().toISOString().split('T')[0]
+    }
+  })
+  const { addInspection } = useInspections()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const onSubmit = async (data: InspectionForm) => {
     setIsSubmitting(true)
     
     try {
-      // 여기에 실제 저장 로직 추가 예정
-      console.log('점검 데이터:', data)
+      // Supabase에 데이터 저장
+      const savedInspection = await addInspection({
+        inspection_date: data.inspectionDate,
+        inspector: data.inspector,
+        site_name: data.siteName,
+        address: data.address,
+        result: data.result,
+        summary: data.summary
+      })
       
-      // 임시: 3초 후 홈으로 이동
-      setTimeout(() => {
-        alert('점검이 완료되었습니다!')
-        navigate('/')
-      }, 3000)
+      // PDF 생성
+      const pdfBlob = await generateInspectionPDF(data)
+      downloadPDF(pdfBlob, `점검보고서_${data.siteName}_${data.inspectionDate}.pdf`)
+      
+      alert('점검이 완료되고 PDF가 생성되었습니다!')
+      navigate('/')
       
     } catch (error) {
       console.error('점검 저장 실패:', error)
-      alert('점검 저장에 실패했습니다.')
+      alert('점검 저장에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setIsSubmitting(false)
     }
@@ -44,7 +59,7 @@ export default function InspectionPage() {
           <h1 className="text-3xl font-bold text-blue-600">보일러 점검</h1>
           <button 
             onClick={() => navigate('/')}
-            className="text-gray-600 hover:text-gray-800"
+            className="text-gray-600 hover:text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-100"
           >
             ← 홈으로
           </button>
@@ -54,7 +69,7 @@ export default function InspectionPage() {
           <div className="grid gap-6 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                점검일
+                점검일 *
               </label>
               <input
                 type="date"
@@ -68,7 +83,7 @@ export default function InspectionPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                점검자
+                점검자 *
               </label>
               <input
                 type="text"
@@ -84,7 +99,7 @@ export default function InspectionPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              현장명
+              현장명 *
             </label>
             <input
               type="text"
@@ -99,7 +114,7 @@ export default function InspectionPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              주소
+              주소 *
             </label>
             <input
               type="text"
@@ -114,7 +129,7 @@ export default function InspectionPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              점검 결과
+              점검 결과 *
             </label>
             <select
               {...register('result', { required: '점검 결과를 선택하세요' })}
@@ -142,6 +157,15 @@ export default function InspectionPage() {
             />
           </div>
 
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h3 className="font-semibold text-blue-800 mb-2">점검 완료 시</h3>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• 점검 데이터가 Supabase에 저장됩니다</li>
+              <li>• PDF 보고서가 자동으로 생성됩니다</li>
+              <li>• 홈 화면에서 점검 기록을 확인할 수 있습니다</li>
+            </ul>
+          </div>
+
           <div className="flex justify-end space-x-4">
             <button
               type="button"
@@ -153,7 +177,7 @@ export default function InspectionPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? '저장 중...' : '점검 완료'}
             </button>
